@@ -20,8 +20,10 @@
 const fs = require("fs");
 const path = require("path");
 
-const CHANNEL_ACCESS_TOKEN = process.env.LINE_CHANNEL_ACCESS_TOKEN;
-const USER_ID = process.env.LINE_USER_ID;
+// .trim() 避免複製貼上 Secrets 時夾帶看不見的空白或換行字元，
+// 不然 LINE API 會回報 'to' 欄位格式不對 (400)。
+const CHANNEL_ACCESS_TOKEN = (process.env.LINE_CHANNEL_ACCESS_TOKEN || "").trim();
+const USER_ID = (process.env.LINE_USER_ID || "").trim();
 
 if (!CHANNEL_ACCESS_TOKEN || !USER_ID) {
   console.error(
