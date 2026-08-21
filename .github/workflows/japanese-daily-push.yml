@@ -1,0 +1,31 @@
+name: Japanese Daily LINE Push
+
+# 跟英文單字推播共用同一個 LINE Official Account、同一組 GitHub Secrets，
+# 只是多一支排程、多推一則日文訊息。時間排在英文推播 5 分鐘後，
+# 避免同一分鐘內對 LINE API 打兩次請求。
+#
+# 如果你的英文推播排程是每天 08:00（東京時間），這支就設定在 08:05（東京時間）。
+# 東京時間 = UTC+9，所以 08:05 JST = 前一天 23:05 UTC。
+
+on:
+  schedule:
+    - cron: "5 23 * * *" # 每天 23:05 UTC = 08:05 JST（次日）
+  workflow_dispatch: {} # 允許在 GitHub Actions 頁面手動點「Run workflow」測試
+
+jobs:
+  push-japanese:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Send daily Japanese LINE message
+        env:
+          LINE_CHANNEL_ACCESS_TOKEN: ${{ secrets.LINE_CHANNEL_ACCESS_TOKEN }}
+          LINE_USER_ID: ${{ secrets.LINE_USER_ID }}
+        run: node line-bot/japanese-daily-push.js
