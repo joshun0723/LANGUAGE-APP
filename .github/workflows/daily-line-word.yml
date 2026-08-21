@@ -1,0 +1,61 @@
+name: Daily LINE TOEIC Word
+
+# 每天早上 8:00（東京時間）自動：
+#   1. 產生當天聽力短文的語音（失敗也沒關係，會自動跳過，不影響文字內容）
+#   2. 把語音轉成 LINE 要求的格式，取得公開網址跟長度
+#   3. 把語音檔提交回 repo（所以這個 repo 要是 Public，LINE 才能讀到網址）
+#   4. 推播當天的單字＋文法＋閱讀＋聽力＋解答給你
+#
+# 東京時間 08:00 = UTC 前一天 23:00，所以 cron 用 "0 23 * * *"。
+
+on:
+  schedule:
+    - cron: "0 23 * * *" # 08:00 JST（次日）
+  workflow_dispatch: {} # 允許在 Actions 頁面手動按「Run workflow」測試
+
+jobs:
+  send-daily-word:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # 需要寫入權限，才能把語音檔 commit 回 repo
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Generate today's listening audio (mp3)
+        id: gen_audio
+        continue-on-error: true # 語音服務不是官方保證的，失敗就跳過，不讓整個流程失敗
+        run: node line-bot/generate-audio.js
+
+      - name: Convert audio to m4a and measure duration
+        id: convert_audio
+        if: steps.gen_audio.outcome == 'success'
+        run: |
+          sudo apt-get update -y
+          sudo apt-get install -y ffmpeg
+          ffmpeg -y -i audio/word-of-the-day.mp3 -c:a aac -b:a 128k audio/word-of-the-day.m4a
+          DURATION_MS=$(ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 audio/word-of-the-day.m4a | awk '{printf "%d", $1*1000}')
+          echo "duration_ms=$DURATION_MS" >> "$GITHUB_OUTPUT"
+
+      - name: Commit audio file (so LINE can fetch it by public URL)
+        if: steps.gen_audio.outcome == 'success'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add audio/word-of-the-day.m4a
+          git rm --cached audio/word-of-the-day.mp3 --ignore-unmatch || true
+          git commit -m "chore: update daily listening audio [skip ci]" || echo "沒有新的語音變動，跳過 commit"
+          git push
+
+      - name: Send daily LINE message
+        env:
+          LINE_CHANNEL_ACCESS_TOKEN: ${{ secrets.LINE_CHANNEL_ACCESS_TOKEN }}
+          LINE_USER_ID: ${{ secrets.LINE_USER_ID }}
+          LINE_AUDIO_URL: ${{ steps.gen_audio.outcome == 'success' && format('https://raw.githubusercontent.com/{0}/main/audio/word-of-the-day.m4a', github.repository) || '' }}
+          LINE_AUDIO_DURATION_MS: ${{ steps.convert_audio.outputs.duration_ms }}
+        run: node line-bot/send-daily-word.js
