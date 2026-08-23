@@ -83,15 +83,15 @@ function buildBusinessPool(bizData) {
 }
 
 /**
- * 用「距離某個固定起始日的天數」當作 index 來源，確保：
+ * 用「距離電腦紀元(1970/1/1)的天數」當作 index 來源，確保：
  * 1. 同一天不管腳本跑幾次，內容都一樣（不會因為重跑而跳題）
  * 2. 每天固定往前推進一筆，直到整個池子跑完一輪後才重複
+ *
+ * 跟 send-daily-word.js（英文版）用同一種算法，避免像之前那版寫死
+ * 一個「未來日期」當起點，導致還沒到那天之前每天都卡在同一筆內容。
  */
 function daysSinceEpochStart() {
-  const START_DATE = new Date("2026-08-24T00:00:00+09:00"); // 東京時間週一，跟課程清單的 Week 1 對齊
-  const now = new Date();
-  const diffMs = now.getTime() - START_DATE.getTime();
-  return Math.max(0, Math.floor(diffMs / (1000 * 60 * 60 * 24)));
+  return Math.floor(Date.now() / (1000 * 60 * 60 * 24));
 }
 
 /**
@@ -125,9 +125,13 @@ function pickPoolForToday(dayIndex, n1Pool, bizPool) {
   };
 }
 
-function formatN1Message(item, dayIndex) {
+function todayDateLabel() {
+  return new Date().toISOString().slice(0, 10);
+}
+
+function formatN1Message(item) {
   const lines = [];
-  lines.push(`📘 今日日文｜N1滿分特訓 (Day ${dayIndex + 1})`);
+  lines.push(`📘 今日日文｜N1滿分特訓 (${todayDateLabel()})`);
   lines.push("");
 
   if (item.type === "n1-grammar") {
@@ -157,9 +161,9 @@ function formatN1Message(item, dayIndex) {
   return lines.join("\n");
 }
 
-function formatBusinessMessage(item, dayIndex) {
+function formatBusinessMessage(item) {
   const lines = [];
-  lines.push(`💼 今日日文｜商用情境 (Day ${dayIndex + 1})`);
+  lines.push(`💼 今日日文｜商用情境 (${todayDateLabel()})`);
   lines.push("");
   lines.push(`情境：${item.scene}`);
   lines.push(`${item.jp}`);
@@ -216,9 +220,7 @@ async function main() {
   const item = pool[itemIndex];
 
   const messageText =
-    poolName === "N1"
-      ? formatN1Message(item, dayIndex)
-      : formatBusinessMessage(item, dayIndex);
+    poolName === "N1" ? formatN1Message(item) : formatBusinessMessage(item);
 
   console.log("--- 今日內容預覽 ---");
   console.log(messageText);
